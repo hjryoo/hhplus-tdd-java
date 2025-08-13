@@ -12,8 +12,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
-
-import static org.mockito.BDDMockito.given;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PointServiceTest {
@@ -85,6 +85,47 @@ class PointServiceTest {
         // 빈 리스트가 반환된다
         assertThat(result).isEmpty();
         assertThat(result).hasSize(0);
+    }
+
+    @Test
+    @DisplayName("유효한 금액으로 포인트를 충전한다")
+    void givenValidAmount_whenChargePoint_thenReturnsUpdatedPoint() {
+        // 현재 500원 보유한 사용자가 1000원을 충전하는 상황
+        long userId = 1L;
+        long currentAmount = 500L;
+        long chargeAmount = 1000L;
+        long expectedAmount = 1500L; // 500 + 1000 = 1500
+
+        UserPoint currentPoint = new UserPoint(userId, currentAmount, FIXED_TIME);
+        UserPoint expectedPoint = new UserPoint(userId, expectedAmount, FIXED_TIME);
+
+        given(userPointTable.selectById(userId)).willReturn(currentPoint);
+        given(userPointTable.insertOrUpdate(userId, expectedAmount)).willReturn(expectedPoint);
+
+        // 포인트 충전 실행
+        UserPoint result = pointService.chargePoint(userId, chargeAmount);
+
+        // 결과 검증
+        assertThat(result.point()).isEqualTo(expectedAmount); // 최종 포인트 확인
+        // 충전 내역 저장 여부 검증
+        verify(pointHistoryTable, times(1)).insert(anyLong(), anyLong(), eq(TransactionType.CHARGE), anyLong());
+    }
+
+    @Test
+    @DisplayName("음수 금액으로 충전할 수 없다")
+    void givenNegativeAmount_whenChargePoint_thenThrowsException() {
+
+        // 음수 충전 금액으로 시도
+        long userId = 1L;
+        long negativeAmount = -1000L; // 음수 금액
+
+        // 예외 발생 검증
+        assertThatThrownBy(() -> pointService.chargePoint(userId, negativeAmount))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("충전 금액은 0보다 커야 합니다.");
+
+        // 부작용 방지 확인
+        verifyNoInteractions(userPointTable, pointHistoryTable);
     }
 
 }
