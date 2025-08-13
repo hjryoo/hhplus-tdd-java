@@ -29,10 +29,11 @@ class PointServiceTest {
 
     private static final long FIXED_TIME = 1634567890000L;
 
+    /* 사용자 포인트 조회 동작 검증 */
     @Test
     @DisplayName("사용자 ID로 포인트를 조회한다")
     void givenUserId_whenGetUserPoint_thenReturnsUserPoint() {
-        // 특정 사용자의 ID로
+        // 특정 사용자의 ID
         long userId = 1L;
         UserPoint expectedPoint = new UserPoint(userId, 1000L, FIXED_TIME);
         given(userPointTable.selectById(userId)).willReturn(expectedPoint);
@@ -44,6 +45,7 @@ class PointServiceTest {
         assertThat(result.point()).isEqualTo(1000L);
     }
 
+    /* 사용자별 포인트 내역 조회 검증 */
     @Test
     @DisplayName("사용자 ID로 포인트 충전/사용 내역을 조회한다")
     void givenUserId_whenGetPointHistories_thenReturnsHistories() {
@@ -72,6 +74,7 @@ class PointServiceTest {
         assertThat(result.get(2).amount()).isEqualTo(2000L);
     }
 
+    /* 신규 사용자나 거래 내역이 없는 경우에도 시스템이 안정적으로 빈 리스트를 반환하는지 검증 */
     @Test
     @DisplayName("내역이 없는 사용자의 경우 빈 리스트를 반환한다")
     void givenUserWithNoHistory_whenGetPointHistories_thenReturnsEmptyList() {
@@ -87,6 +90,7 @@ class PointServiceTest {
         assertThat(result).hasSize(0);
     }
 
+    /* 정상적인 포인트 충전 로직과 잔액 계산의 정확성을 검증 */
     @Test
     @DisplayName("유효한 금액으로 포인트를 충전한다")
     void givenValidAmount_whenChargePoint_thenReturnsUpdatedPoint() {
@@ -111,6 +115,7 @@ class PointServiceTest {
         verify(pointHistoryTable, times(1)).insert(anyLong(), anyLong(), eq(TransactionType.CHARGE), anyLong());
     }
 
+    /* 음수 금액 충전 시도 시 적절한 예외 처리와 데이터 무결성 보장 검증 */
     @Test
     @DisplayName("음수 금액으로 충전할 수 없다")
     void givenNegativeAmount_whenChargePoint_thenThrowsException() {
@@ -127,6 +132,7 @@ class PointServiceTest {
         verifyNoInteractions(userPointTable, pointHistoryTable);
     }
 
+    /* 정상적인 포인트 사용 로직과 잔액 차감의 정확성 검증 */
     @Test
     @DisplayName("잔고가 충분할 때 포인트를 사용한다")
     void givenSufficientBalance_whenUsePoint_thenReturnsUpdatedPoint() {
@@ -152,6 +158,7 @@ class PointServiceTest {
         verify(pointHistoryTable, times(1)).insert(anyLong(), anyLong(), eq(TransactionType.USE), anyLong());
     }
 
+    /* "잔고 부족 시 포인트 사용 실패" 비즈니스 규칙 검증 */
     @Test
     @DisplayName("잔고가 부족하면 포인트 사용이 실패한다")
     void givenInsufficientBalance_whenUsePoint_thenThrowsException() {
