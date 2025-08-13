@@ -124,8 +124,55 @@ class PointServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("충전 금액은 0보다 커야 합니다.");
 
-        // 부작용 방지 확인
         verifyNoInteractions(userPointTable, pointHistoryTable);
+    }
+
+    @Test
+    @DisplayName("잔고가 충분할 때 포인트를 사용한다")
+    void givenSufficientBalance_whenUsePoint_thenReturnsUpdatedPoint() {
+
+        // 잔고 1500원, 사용하려는 금액 1000원
+        long userId = 1L;
+        long currentAmount = 1500L;
+        long useAmount = 1000L;
+        long expectedAmount = 500L; // 1500 - 1000 = 500
+
+        UserPoint currentPoint = new UserPoint(userId, currentAmount, FIXED_TIME);
+        UserPoint expectedPoint = new UserPoint(userId, expectedAmount, FIXED_TIME);
+
+        given(userPointTable.selectById(userId)).willReturn(currentPoint);
+        given(userPointTable.insertOrUpdate(userId, expectedAmount)).willReturn(expectedPoint);
+
+        // 포인트 사용
+        UserPoint result = pointService.usePoint(userId, useAmount);
+
+        // 차감된 포인트 잔액이 정확한지 검증
+        assertThat(result.point()).isEqualTo(expectedAmount);
+        // 사용 내역이 정확히 1회 기록되었는지 검증
+        verify(pointHistoryTable, times(1)).insert(anyLong(), anyLong(), eq(TransactionType.USE), anyLong());
+    }
+
+    @Test
+    @DisplayName("잔고가 부족하면 포인트 사용이 실패한다")
+    void givenInsufficientBalance_whenUsePoint_thenThrowsException() {
+        // given: 잔고 500원, 사용하려는 금액 1000원
+        long userId = 1L;
+        long currentAmount = 500L;
+        long useAmount = 1000L; // 잔고보다 큰 금액
+
+        UserPoint currentPoint = new UserPoint(userId, currentAmount, FIXED_TIME);
+        given(userPointTable.selectById(userId)).willReturn(currentPoint);
+
+        // 예외 발생 및 메시지 검증
+        assertThatThrownBy(() -> pointService.usePoint(userId, useAmount))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("잔고가 부족합니다.");
+
+        // 데이터 무결성 보장
+        // 포인트 업데이트가 발생하지 않았는지 검증
+        verify(userPointTable, never()).insertOrUpdate(anyLong(), anyLong());
+        // 잘못된 사용 내역이 기록되지 않았는지 검증
+        verify(pointHistoryTable, never()).insert(anyLong(), anyLong(), any(TransactionType.class), anyLong());
     }
 
 }
